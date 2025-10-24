@@ -1,0 +1,19 @@
+cluster_certificate_authority_data = <sensitive>
+cluster_endpoint = "https://83C5A76943B15A72D87020F2EE146103.gr7.us-east-1.eks.amazonaws.com"
+cluster_name = "k8s-learning-cluster"
+cluster_security_group_id = "sg-04fe513a3731adbe2"
+configure_kubectl = "aws eks update-kubeconfig --region us-east-1 --name k8s-learning-cluster"
+ecr_repository_arn = "arn:aws:ecr:us-east-1:471112766719:repository/k8s-learning/guestbook"
+ecr_repository_url = "471112766719.dkr.ecr.us-east-1.amazonaws.com/k8s-learning/guestbook"
+private_subnets = [
+  "subnet-047f9a1750111b678",
+  "subnet-06c4aa946d91b8a7f",
+  "subnet-0b6c2f197e9ebdb18",
+]
+public_subnets = [
+  "subnet-0d34af510a6078cdb",
+  "subnet-06bedbc8d0ff3332c",
+  "subnet-0761529cee7b9c581",
+]
+vpc_cidr_block = "10.0.0.0/16"
+vpc_id = "vpc-0f78dc789fa2dcb72"

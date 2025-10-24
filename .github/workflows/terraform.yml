@@ -1,0 +1,135 @@
+name: 'Terraform EKS Infrastructure'
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform Action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.6.0
+
+jobs:
+  terraform:
+    name: 'Terraform ${{ github.event.inputs.action || 'plan' }}'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./infrastructure
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+
+    - name: Terraform Plan
+      id: plan
+      if: github.event_name == 'pull_request' || github.event.inputs.action == 'plan' || github.event.inputs.action == ''
+      run: terraform plan -no-color -input=false
+      continue-on-error: false
+
+    - name: Update Pull Request
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Terraform Plan Status
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+
+    - name: Terraform Apply
+      if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+      run: terraform apply -auto-approve -input=false
+
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy' && github.ref == 'refs/heads/main'
+      run: terraform destroy -auto-approve -input=false
+
+    - name: Save Terraform Outputs
+      if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+      id: outputs
+      run: |
+        echo "cluster_name=$(terraform output -raw cluster_name)" >> $GITHUB_OUTPUT
+        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+        echo "configure_kubectl=$(terraform output -raw configure_kubectl)" >> $GITHUB_OUTPUT
+
+    - name: Display Next Steps
+      if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+      run: |
+        echo "✅ Infrastructure deployed successfully!"
+        echo ""
+        echo "📝 Next steps:"
+        echo "1. Configure kubectl: ${{ steps.outputs.outputs.configure_kubectl }}"
+        echo "2. ECR Repository: ${{ steps.outputs.outputs.ecr_repository_url }}"
+        echo "3. Deploy your application using the application workflow"
