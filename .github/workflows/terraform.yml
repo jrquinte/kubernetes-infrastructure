@@ -16,13 +16,13 @@ on:
     branches:
       - main
     paths:
-      - 'infrastructure/**'
+      - '*.tf'  # Changed: Terraform files are at root
       - '.github/workflows/terraform.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'infrastructure/**'
+      - '*.tf'  # Changed: Terraform files are at root
 
 env:
   AWS_REGION: us-east-1
@@ -37,7 +37,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./infrastructure
+        working-directory: .  # Changed: Use root directory
 
     steps:
     - name: Checkout
