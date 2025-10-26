@@ -85,6 +85,7 @@ module "eks" {
 resource "aws_ecr_repository" "guestbook" {
   name                 = "${var.project_name}/guestbook"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true  # Allow deletion even with images
 
   image_scanning_configuration {
     scan_on_push = true
@@ -115,7 +116,94 @@ resource "aws_ecr_lifecycle_policy" "guestbook" {
   })
 }
 
-# Data sources
+# ============================================================================
+# AWS LOAD BALANCER CONTROLLER
+# ============================================================================
+
+# Download IAM policy document for AWS Load Balancer Controller
+data "http" "lb_controller_iam_policy" {
+  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json"
+}
+
+# Create IAM policy for AWS Load Balancer Controller
+resource "aws_iam_policy" "aws_lb_controller" {
+  name        = "${var.cluster_name}-AWSLoadBalancerControllerIAMPolicy"
+  description = "IAM policy for AWS Load Balancer Controller"
+  policy      = data.http.lb_controller_iam_policy.response_body
+
+  tags = {
+    Name = "${var.cluster_name}-lb-controller-policy"
+  }
+}
+
+# Create IAM role for service account (IRSA) for AWS Load Balancer Controller
+module "aws_lb_controller_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name                              = "${var.cluster_name}-aws-load-balancer-controller"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-lb-controller-role"
+  }
+}
+
+# Install AWS Load Balancer Controller using Helm
+resource "helm_release" "aws_lb_controller" {
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  version    = "1.7.2"
+
+  set {
+    name  = "clusterName"
+    value = module.eks.cluster_name
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "aws-load-balancer-controller"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.aws_lb_controller_irsa.iam_role_arn
+  }
+
+  set {
+    name  = "region"
+    value = var.aws_region
+  }
+
+  set {
+    name  = "vpcId"
+    value = module.vpc.vpc_id
+  }
+
+  depends_on = [
+    module.eks,
+    module.aws_lb_controller_irsa
+  ]
+}
+
+# ============================================================================
+# DATA SOURCES
+# ============================================================================
+
 data "aws_availability_zones" "available" {
   state = "available"
 }

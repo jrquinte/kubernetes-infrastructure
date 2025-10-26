@@ -58,3 +58,27 @@ output "configure_kubectl" {
   description = "Configure kubectl: run the following command to update your kubeconfig"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
+
+# ============================================================================
+# AWS LOAD BALANCER CONTROLLER OUTPUTS
+# ============================================================================
+
+output "lb_controller_role_arn" {
+  description = "IAM Role ARN for AWS Load Balancer Controller"
+  value       = module.aws_lb_controller_irsa.iam_role_arn
+}
+
+output "lb_controller_role_name" {
+  description = "IAM Role name for AWS Load Balancer Controller"
+  value       = module.aws_lb_controller_irsa.iam_role_name
+}
+
+output "lb_controller_policy_arn" {
+  description = "IAM Policy ARN for AWS Load Balancer Controller"
+  value       = aws_iam_policy.aws_lb_controller.arn
+}
+
+output "verify_lb_controller" {
+  description = "Command to verify AWS Load Balancer Controller installation"
+  value       = "kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller"
+}

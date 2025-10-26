@@ -1,19 +1,23 @@
 cluster_certificate_authority_data = <sensitive>
-cluster_endpoint = "https://83C5A76943B15A72D87020F2EE146103.gr7.us-east-1.eks.amazonaws.com"
+cluster_endpoint = "https://9AC3874C53016FA4E55339A085D4B930.gr7.us-east-1.eks.amazonaws.com"
 cluster_name = "k8s-learning-cluster"
-cluster_security_group_id = "sg-04fe513a3731adbe2"
+cluster_security_group_id = "sg-0480349205e533c70"
 configure_kubectl = "aws eks update-kubeconfig --region us-east-1 --name k8s-learning-cluster"
 ecr_repository_arn = "arn:aws:ecr:us-east-1:471112766719:repository/k8s-learning/guestbook"
 ecr_repository_url = "471112766719.dkr.ecr.us-east-1.amazonaws.com/k8s-learning/guestbook"
+lb_controller_policy_arn = "arn:aws:iam::471112766719:policy/k8s-learning-cluster-AWSLoadBalancerControllerIAMPolicy"
+lb_controller_role_arn = "arn:aws:iam::471112766719:role/k8s-learning-cluster-aws-load-balancer-controller"
+lb_controller_role_name = "k8s-learning-cluster-aws-load-balancer-controller"
 private_subnets = [
-  "subnet-047f9a1750111b678",
-  "subnet-06c4aa946d91b8a7f",
-  "subnet-0b6c2f197e9ebdb18",
+  "subnet-02b5aef00ca9da6f9",
+  "subnet-0c38b370f8afc9442",
+  "subnet-0abc66edda1bb5361",
 ]
 public_subnets = [
-  "subnet-0d34af510a6078cdb",
-  "subnet-06bedbc8d0ff3332c",
-  "subnet-0761529cee7b9c581",
+  "subnet-0e8e8a59249cbbd66",
+  "subnet-0cc473a3e5cff74fc",
+  "subnet-09fbc0a47f8215673",
 ]
+verify_lb_controller = "kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller"
 vpc_cidr_block = "10.0.0.0/16"
-vpc_id = "vpc-0f78dc789fa2dcb72"
+vpc_id = "vpc-00118d6731ce832d0"
