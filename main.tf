@@ -42,7 +42,9 @@ module "eks" {
   eks_managed_node_group_defaults = {
     instance_types = var.node_instance_types
 
-    attach_cluster_primary_security_group = true
+    # ✅ CRITICAL CHANGE 1: Don't attache cluster SG to the nodes
+    # To avoid duplicate tag error causing conflict
+    attach_cluster_primary_security_group = false
   }
 
   eks_managed_node_groups = {
@@ -65,6 +67,71 @@ module "eks" {
         "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
         "k8s.io/cluster-autoscaler/enabled"             = "true"
       }
+    }
+  }
+
+  # ✅ CRITICAL CHANGE 2: Add explicit rules for node security group
+  # These rules replace the lost ones when disabling attach_cluster_primary_security_group
+  node_security_group_additional_rules = {
+    # Allow control plane traffic to nodes (1025-65535)
+    ingress_cluster_to_node_all = {
+      description                   = "Allow all traffic from cluster control plane to nodes"
+      type                          = "ingress"
+      protocol                      = "tcp"
+      from_port                     = 1025
+      to_port                       = 65535
+      source_cluster_security_group = true
+    }
+
+    # Allow all traffic between nodes (Mandatory for CNI and pod-to-pod communication)
+    ingress_self_all = {
+      description = "Node to node all traffic"
+      type        = "ingress"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      self        = true
+    }
+
+    # ✅ CRITICAL: Allow traffic to NodePorts (30000-32767)
+    # Mandatory to LoadBalancers can access to the services
+    ingress_allow_nodeports = {
+      description = "Allow NodePort traffic from anywhere (needed for LoadBalancers)"
+      type        = "ingress"
+      protocol    = "tcp"
+      from_port   = 30000
+      to_port     = 32767
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    # Allow HTTP traffic from any origin (if you need to expose web services)
+    ingress_allow_http = {
+      description = "Allow HTTP traffic from anywhere"
+      type        = "ingress"
+      protocol    = "tcp"
+      from_port   = 80
+      to_port     = 80
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    # Allow HTTPS traffic from any origin (if you need to expose web services)
+    ingress_allow_https = {
+      description = "Allow HTTPS traffic from anywhere"
+      type        = "ingress"
+      protocol    = "tcp"
+      from_port   = 443
+      to_port     = 443
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    # Allow all outbound traffic
+    egress_all = {
+      description = "Allow all outbound traffic"
+      type        = "egress"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      cidr_blocks = ["0.0.0.0/0"]
     }
   }
 
@@ -117,7 +184,7 @@ resource "aws_ecr_lifecycle_policy" "guestbook" {
 }
 
 # ============================================================================
-# AWS LOAD BALANCER CONTROLLER
+# AWS LOAD BALANCER CONTROLLER - IMPROVED CONFIGURATION
 # ============================================================================
 
 # Download IAM policy document for AWS Load Balancer Controller
@@ -156,7 +223,7 @@ module "aws_lb_controller_irsa" {
   }
 }
 
-# Install AWS Load Balancer Controller using Helm
+# ✅ IMPROVED: Advanced configuration of AWS Load Balancer Controller
 resource "helm_release" "aws_lb_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
@@ -192,6 +259,54 @@ resource "helm_release" "aws_lb_controller" {
   set {
     name  = "vpcId"
     value = module.vpc.vpc_id
+  }
+
+  # ✅ IMPROVED: Additional configuration for better performance and reliability
+  set {
+    name  = "replicaCount"
+    value = "2"  # High availability with 2 replicas
+  }
+
+  set {
+    name  = "enableShield"
+    value = "false"  # Disable AWS Shield by default (it will be expensive)
+  }
+
+  set {
+    name  = "enableWaf"
+    value = "false"  # Disable AWS WAF by default (it will be expensive)
+  }
+
+  set {
+    name  = "enableWafv2"
+    value = "false"  # Disable AWS WAFv2 by default (it will be expensive)
+  }
+
+  # Improve logging for debugging
+  set {
+    name  = "logLevel"
+    value = "info"  # Options: debug, info, warn, error
+  }
+
+  # Configure controller resources
+  set {
+    name  = "resources.requests.cpu"
+    value = "100m"
+  }
+
+  set {
+    name  = "resources.requests.memory"
+    value = "128Mi"
+  }
+
+  set {
+    name  = "resources.limits.cpu"
+    value = "200m"
+  }
+
+  set {
+    name  = "resources.limits.memory"
+    value = "256Mi"
   }
 
   depends_on = [
