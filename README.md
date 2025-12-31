@@ -2,6 +2,8 @@
 
 A complete Infrastructure as Code (IaC) and CI/CD implementation using AWS EKS, Terraform, Docker, and GitHub Actions.
 
+[Link to app repo](https://github.com/jrquinte/guestbook-app)
+
 ## 📋 Table of Contents
 
 - [Overview](#overview)
